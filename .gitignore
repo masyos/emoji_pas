@@ -67,3 +67,22 @@ __recovery/
 
 # Boss dependency manager vendor folder https://github.com/HashLoad/boss
 modules/
+
+# Lazarus & FreePascal settings
+*.lps
+*.fpcunit.ini
+
+# Lazarus & FreePascal compiler-generated binaries
+*.res
+*.obj
+*.ppu
+*.compared
+
+# Lazarus & FreePascal build dirs
+backup/
+lib/
+
+# local settings
+local/
+local.settings.json
+local.adoc
