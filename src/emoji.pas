@@ -25,9 +25,7 @@ type
   THasImageServices = set of THasImageService;
 
   TEmojiCode = array [1..EmojiCodeMax] of Uint32;
-  TEmojiAddedIn = record
-    LoVer, HiVer: Uint8;
-  end;
+  TEmojiVersion = Uint32;
 
   { TEmojiDataEntry }
 
@@ -43,10 +41,10 @@ type
     FCategory: utf8string;
     FSubCategory: utf8string;
     FSortOrder: integer;
-    FAddedIn: Uint32;
+    FAddedIn: TEmojiVersion;
     FHasImageServices: THasImageServices;
-    function GetAddedInMajorVer: Uint32;
-    function GetAddedInMinorVer: Uint32;
+    function GetAddedInMajor: Uint8;
+    function GetAddedInMinor: Uint8;
     procedure SetUnified(AValue: utf8string);
   public
     constructor Create;
@@ -59,9 +57,9 @@ type
     property NonQualified: utf8string read FNonQualified write FNonQualified;
 	property ShortName: utf8string read FShortName write FShortName;
   	property ShortNames: TStringList read FShortNames;
-    property AddedIn: Uint32 read FAddedIn write FAddedIn;
-    property AddedInMajorVer: Uint32 read GetAddedInMajorVer;
-    property AddedInMinorVer: Uint32 read GetAddedInMinorVer;
+    property AddedIn: TEmojiVersion read FAddedIn write FAddedIn;
+    property AddedInMajor: Uint8 read GetAddedInMajor;
+    property AddedInMinor: Uint8 read GetAddedInMinor;
     property Category: utf8string read FCategory write FCategory;
     property SubCategory: utf8string read FSubCategory write FSubCategory;
     property SortOrder: integer read FSortOrder write FSortOrder;
@@ -71,7 +69,7 @@ type
   TEmojiData = class
   private
     FCaseSensitive: boolean;
-    FAddedIn: Uint32;
+    FVersion: TEmojiVersion;
 
     FEntries: specialize TObjectList<TEmojiDataEntry>;
     FNameDict: specialize TDictionary<utf8string, integer>;
@@ -84,14 +82,17 @@ type
     constructor Create(ACaseSensitive: boolean = false; AAddedIn: uint32 = 0);
     destructor Destroy; override;
 
+    { add entry. }
     function Add(entry: TEmojiDataEntry): integer;
 
-    // enties count.
+    { entries count. }
     function Count: Integer;
 
-
+    { find entry by name. }
     function FindByName(const value: utf8string): integer;
+    { find entry by short-name. }
     function FindByShortName(const value: utf8string): integer;
+    { find entry by text. }
     function FindByText(const value: utf8string): integer;
 
     function EmojizeByName(const value: utf8string): utf8string;
@@ -99,10 +100,22 @@ type
     function DemojizeNameIn(const value: utf8string): utf8string;
     function DemojizeShortNameIn(const value: utf8string): utf8string;
 
+    { name is case sensitive ? }
     property CaseSensitive: boolean read FCaseSensitive;
-    property AddedIn: Uint32 read FAddedIn;
-	property Entries[index: integer]: TEmojiDataEntry read GetEntries;
+    { emoji version }
+    property Version: TEmojiVersion read FVersion;
+    { emoji entries }
+    property Entries[index: integer]: TEmojiDataEntry read GetEntries;
   end;
+
+{ emoji version utils. }
+
+function MakeEmojiVersion(AMajor, AMinor, APatch, ABuild: Uint8): TEmojiVersion;
+function GetEmojiVersionMajor(value: TEmojiVersion): Uint8;
+function GetEmojiVersionMinor(value: TEmojiVersion): Uint8;
+function GetEmojiVersionPatch(value: TEmojiVersion): Uint8;
+function GetEmojiVersionBuild(value: TEmojiVersion): Uint8;
+
 
 (* emoji-data: json format. *)
 function GetEmojiData(const value: utf8string; CaseSensitive: boolean = false; RegUpVer: uint32 = 0): TEmojiData;
@@ -218,8 +231,38 @@ begin
   end else begin
     h := StrToInt(value);
   end;
-  Result := (h shl 24) or (l shl 16);
+  Result := MakeEmojiVersion(h, l, 0, 0);
 end;
+
+
+function MakeEmojiVersion(AMajor, AMinor, APatch, ABuild: Uint8): TEmojiVersion;
+begin
+  Result := (Uint32(AMajor) shl 24) or
+  			(Uint32(AMinor) shl 16) or
+            (Uint32(APatch) shl  8) or
+            (Uint32(ABuild));
+end;
+
+function GetEmojiVersionMajor(value: TEmojiVersion): Uint8;
+begin
+  Result := (value shr 24) and $ff;
+end;
+
+function GetEmojiVersionMinor(value: TEmojiVersion): Uint8;
+begin
+  Result := (value shr 16) and $ff;
+end;
+
+function GetEmojiVersionPatch(value: TEmojiVersion): Uint8;
+begin
+  Result := (value shr  8) and $ff;
+end;
+
+function GetEmojiVersionBuild(value: TEmojiVersion): Uint8;
+begin
+  Result := value and $ff;
+end;
+
 
 (*
   [{
@@ -350,7 +393,7 @@ end;
 constructor TEmojiData.Create(ACaseSensitive: boolean; AAddedIn: uint32);
 begin
   FCaseSensitive := ACaseSensitive;
-  FAddedIn := AAddedIn;
+  FVersion := AAddedIn;
 
   FEntries := specialize TObjectList<TEmojiDataEntry>.Create;
   FNameDict := specialize TDictionary<utf8string, integer>.Create;
@@ -372,7 +415,9 @@ var
   s: utf8string;
 begin
   Result := -1;
-  if (FAddedIn > 0) and (entry.AddedIn > FAddedIn) then
+  if (entry.Name = EpmtyStr) then
+    Exit;
+  if (FVersion > 0) and (entry.AddedIn > FVersion) then
     Exit;
 
   s := entry.Name;
@@ -382,7 +427,6 @@ begin
     Result := FNameDict[s];
     Exit;
   end;
-
   Result := FEntries.Add(entry);
   FNameDict.Add(s, Result);
 
@@ -392,6 +436,10 @@ begin
   FShortNameDict.Add(s, Result);
 
   FTextDict.Add(entry.Text, Result);
+
+  if entry.AddedIn > FVersion then begin
+    FVersion := entry.AddedIn;
+  end;
 end;
 
 function TEmojiData.Count: Integer;
@@ -481,6 +529,16 @@ end;
 
 { TEmojiDataEntry }
 
+function TEmojiDataEntry.GetAddedInMajor: Uint8;
+begin
+  Result := GetEmojiVersionMajor(FAddedIn);
+end;
+
+function TEmojiDataEntry.GetAddedInMinor: Uint8;
+begin
+  Result := GetEmojiVersionMinor(FAddedIn);
+end;
+
 procedure TEmojiDataEntry.SetUnified(AValue: utf8string);
 var
   start, term: integer;
@@ -496,16 +554,6 @@ begin
   for start := 1 to term do begin
     FText := FText + CodeToStr(FCode[start]);
   end;
-end;
-
-function TEmojiDataEntry.GetAddedInMajorVer: Uint32;
-begin
-  Result := FAddedIn shr 24;
-end;
-
-function TEmojiDataEntry.GetAddedInMinorVer: Uint32;
-begin
-  Result := FAddedIn shr 16;
 end;
 
 constructor TEmojiDataEntry.Create;
