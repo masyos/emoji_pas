@@ -36,7 +36,7 @@ type
     FCode: TEmojiCode;
     FText: utf8string;
     FNonQualified: utf8string;
-	FShortName: utf8string;
+	  FShortName: utf8string;
   	FShortNames: TStringList;
     FCategory: utf8string;
     FSubCategory: utf8string;
@@ -49,7 +49,6 @@ type
   public
     constructor Create;
     destructor Destroy; override;
-
 
     property Name: utf8string read FName write FName;
     property Unified: utf8string read FUnified write SetUnified;
@@ -66,15 +65,18 @@ type
     property HasImageServices: THasImageServices read FHasImageServices write FHasImageServices;
   end;
 
+  TEmojiDataEntries = specialize TObjectList<TEmojiDataEntry>;
+  TEmojiStrDict = specialize TDictionary<utf8string, integer>;
+
   TEmojiData = class
   private
     FCaseSensitive: boolean;
     FVersion: TEmojiVersion;
 
-    FEntries: specialize TObjectList<TEmojiDataEntry>;
-    FNameDict: specialize TDictionary<utf8string, integer>;
-    FShortNameDict: specialize TDictionary<utf8string, integer>;
-    FTextDict: specialize TDictionary<utf8string, integer>;
+    FEntries: TEmojiDataEntries;
+    FNameDict: TEmojiStrDict;
+    FShortNameDict: TEmojiStrDict;
+    FTextDict: TEmojiStrDict;
 
     function GetEntries(index: integer): TEmojiDataEntry;
 
@@ -127,9 +129,8 @@ function GetEmojiDataFromEmojiDataSource(CaseSensitive: boolean = false; RegUpVe
 implementation
 
 uses
-  fpjson, jsonparser, fphttpclient, opensslsockets;
-
-
+  fpjson, jsonparser, 
+  fphttpclient, opensslsockets;
 
 //  0xxx-xxxx
 //  110y-yyyx 	10xx-xxxx
@@ -238,7 +239,7 @@ end;
 function MakeEmojiVersion(AMajor, AMinor, APatch, ABuild: Uint8): TEmojiVersion;
 begin
   Result := (Uint32(AMajor) shl 24) or
-  			(Uint32(AMinor) shl 16) or
+  			    (Uint32(AMinor) shl 16) or
             (Uint32(APatch) shl  8) or
             (Uint32(ABuild));
 end;
@@ -395,10 +396,10 @@ begin
   FCaseSensitive := ACaseSensitive;
   FVersion := AAddedIn;
 
-  FEntries := specialize TObjectList<TEmojiDataEntry>.Create;
-  FNameDict := specialize TDictionary<utf8string, integer>.Create;
-  FShortNameDict := specialize TDictionary<utf8string, integer>.Create;
-  FTextDict := specialize TDictionary<utf8string, integer>.Create;
+  FEntries := TEmojiDataEntries.Create;
+  FNameDict := TEmojiStrDict.Create;
+  FShortNameDict := TEmojiStrDict.Create;
+  FTextDict := TEmojiStrDict.Create;
 end;
 
 destructor TEmojiData.Destroy;
@@ -415,7 +416,7 @@ var
   s: utf8string;
 begin
   Result := -1;
-  if (entry.Name = EpmtyStr) then
+  if (entry.Name = EmptyStr) then
     Exit;
   if (FVersion > 0) and (entry.AddedIn > FVersion) then
     Exit;
