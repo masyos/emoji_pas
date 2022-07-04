@@ -1,3 +1,8 @@
+(* SPDX-License-Identifier: MIT *)
+(*
+   Emoji for Free Pascal version 0.0.1
+   Copyright 2022 YOSHIDA, Masahiro.
+ *)
 unit Emoji;
 
 {$mode ObjFPC}{$H+}
@@ -36,7 +41,7 @@ type
     FCode: TEmojiCode;
     FText: utf8string;
     FNonQualified: utf8string;
-	  FShortName: utf8string;
+	FShortName: utf8string;
   	FShortNames: TStringList;
     FCategory: utf8string;
     FSubCategory: utf8string;
@@ -68,11 +73,14 @@ type
   TEmojiDataEntries = specialize TObjectList<TEmojiDataEntry>;
   TEmojiStrDict = specialize TDictionary<utf8string, integer>;
 
+  { TEmojiData }
+
   TEmojiData = class
   private
     FCaseSensitive: boolean;
-    FVersion: TEmojiVersion;
+    FAddedVersion: TEmojiVersion;
 
+    FVersion: TEmojiVersion;
     FEntries: TEmojiDataEntries;
     FNameDict: TEmojiStrDict;
     FShortNameDict: TEmojiStrDict;
@@ -81,7 +89,9 @@ type
     function GetEntries(index: integer): TEmojiDataEntry;
 
   public
+    { constructor }
     constructor Create(ACaseSensitive: boolean = false; AAddedIn: uint32 = 0);
+    { destructor }
     destructor Destroy; override;
 
     { add entry. }
@@ -97,10 +107,19 @@ type
     { find entry by text. }
     function FindByText(const value: utf8string): integer;
 
+    { Emojize }
     function EmojizeByName(const value: utf8string): utf8string;
+    { Emojize }
     function EmojizeByShortName(const value: utf8string): utf8string;
+    { Demojize }
     function DemojizeNameIn(const value: utf8string): utf8string;
+    { Demojize }
     function DemojizeShortNameIn(const value: utf8string): utf8string;
+
+    { load from 'emoji.json' stream. }
+    procedure LoadFromStream(const Stream: TStream);
+    { load from 'emoji.json' file. }
+    procedure LoadFromFile(const Filename: string);
 
     { name is case sensitive ? }
     property CaseSensitive: boolean read FCaseSensitive;
@@ -294,65 +313,23 @@ end;
 function GetEmojiData(const value: utf8string; CaseSensitive: boolean;
   RegUpVer: uint32): TEmojiData;
 var
-  dat: TJSONData;
-  root, ary: TJsonArray;
-  obj: TJsonObject;
-  index, sindex: integer;
-  entry: TEmojiDataEntry;
+  stream: TStream;
 begin
-  dat := GetJSON(value);
-  Result := TEmojiData.Create(CaseSensitive, RegUpVer);
-
-  root := dat as TJsonArray;
-
-
-  for index := 0 to root.Count-1 do begin
-    obj := root.Items[index] as TJsonObject;
-    entry := TEmojiDataEntry.Create;
-    entry.Name := obj.Strings['name'];
-    entry.ShortName:= obj.Strings['short_name'];
-    entry.Unified:= obj.Strings['unified'];
-    entry.NonQualified:=obj.Get('non_qualified', EmptyStr); // null ok.
-    entry.Category:= obj.Strings['category'];
-    entry.SubCategory:=obj.Strings['subcategory'];
-    entry.SortOrder:=obj.Integers['sort_order'];
-    entry.AddedIn := DecodeAddedIn(obj.Strings['added_in']);
-    if obj.Booleans['has_img_apple'] then
-      entry.HasImageServices := entry.HasImageServices + [hisApple];
-    if obj.Booleans['has_img_google'] then
-      entry.HasImageServices := entry.HasImageServices + [hisGoogle];
-    if obj.Booleans['has_img_twitter'] then
-      entry.HasImageServices := entry.HasImageServices + [hisTwitter];
-    if obj.Booleans['has_img_facebook'] then
-      entry.HasImageServices := entry.HasImageServices + [hisFacebook];
-
-    ary := obj.Arrays['short_names'];
-    for sindex := 0 to ary.Count-1 do begin
-      entry.ShortNames.Add(ary.Strings[sindex]);
-    end;
-
-    Result.Add(entry);
+  Result := nil;
+  stream := TStringStream.Create(value);
+  try
+    Result := TEmojiData.Create(CaseSensitive, RegUpVer);
+    Result.LoadFromStream(stream);
+  finally
+    stream.Free;
   end;
 end;
 
 function GetEmojiDataFromFile(const filename: string; CaseSensitive: boolean;
   RegUpVer: uint32): TEmojiData;
-var
-  f: TStringStream;
-  s: utf8string;
 begin
-  Result := nil;
-  s := EmptyStr;
-  f := TStringStream.Create;
-  try
-    f.LoadFromFile(filename);
-    s := f.DataString;
-  finally
-  	f.Free;
-  end;
-  if Length(s) > 0 then begin
-    Result := GetEmojiData(s, CaseSensitive, RegUpVer);
-  end;
+  Result := TEmojiData.Create(CaseSensitive, RegUpVer);
+  Result.LoadFromFile(filename);
 end;
 
 function GetEmojiDataFromEmojiDataSource(CaseSensitive: boolean;
@@ -394,8 +371,8 @@ end;
 constructor TEmojiData.Create(ACaseSensitive: boolean; AAddedIn: uint32);
 begin
   FCaseSensitive := ACaseSensitive;
-  FVersion := AAddedIn;
-
+  FAddedVersion := AAddedIn;
+  FVersion := 0;
   FEntries := TEmojiDataEntries.Create;
   FNameDict := TEmojiStrDict.Create;
   FShortNameDict := TEmojiStrDict.Create;
@@ -418,7 +395,7 @@ begin
   Result := -1;
   if (entry.Name = EmptyStr) then
     Exit;
-  if (FVersion > 0) and (entry.AddedIn > FVersion) then
+  if (FAddedVersion > 0) and (entry.AddedIn > FAddedVersion) then
     Exit;
 
   s := entry.Name;
@@ -528,6 +505,69 @@ begin
 end;
 
 
+
+procedure TEmojiData.LoadFromStream(const Stream: TStream);
+var
+  dat: TJSONData;
+  root, ary: TJsonArray;
+  obj: TJsonObject;
+  index, sindex: integer;
+  entry: TEmojiDataEntry;
+begin
+  dat := GetJSON(Stream);
+  if not Assigned(dat) then Exit;
+  root := dat as TJsonArray;
+  if not Assigned(root) then Exit;
+
+  for index := 0 to root.Count-1 do begin
+    obj := root.Items[index] as TJsonObject;
+    if not Assigned(obj) then
+      Break;
+    entry := TEmojiDataEntry.Create;
+    try
+      entry.Name := obj.Strings['name'];
+      entry.ShortName:= obj.Strings['short_name'];
+      entry.Unified:= obj.Strings['unified'];
+      entry.NonQualified:=obj.Get('non_qualified', EmptyStr); // null ok.
+      entry.Category:= obj.Strings['category'];
+      entry.SubCategory:=obj.Strings['subcategory'];
+      entry.SortOrder:=obj.Integers['sort_order'];
+      entry.AddedIn := DecodeAddedIn(obj.Strings['added_in']);
+      if obj.Booleans['has_img_apple'] then
+        entry.HasImageServices := entry.HasImageServices + [hisApple];
+      if obj.Booleans['has_img_google'] then
+        entry.HasImageServices := entry.HasImageServices + [hisGoogle];
+      if obj.Booleans['has_img_twitter'] then
+        entry.HasImageServices := entry.HasImageServices + [hisTwitter];
+      if obj.Booleans['has_img_facebook'] then
+        entry.HasImageServices := entry.HasImageServices + [hisFacebook];
+
+      ary := obj.Arrays['short_names'];
+      for sindex := 0 to ary.Count-1 do begin
+        entry.ShortNames.Add(ary.Strings[sindex]);
+      end;
+
+      Add(entry);
+      entry := nil;
+    finally
+      entry.Free;
+    end;
+  end;
+end;
+
+procedure TEmojiData.LoadFromFile(const Filename: string);
+var
+  stream: TFileStream;
+begin
+  stream := TFileStream.Create(Filename, fmOpenRead or fmShareDenyWrite);
+  try
+    LoadFromStream(stream);
+  finally
+    stream.Free;
+  end;
+end;
+
+
 { TEmojiDataEntry }
 
 function TEmojiDataEntry.GetAddedInMajor: Uint8;
@@ -567,6 +607,8 @@ begin
   FShortNames.Free;
   inherited Destroy;
 end;
+
+
 
 
 
