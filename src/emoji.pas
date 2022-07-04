@@ -26,8 +26,8 @@ const
     'https://cdn.jsdelivr.net/npm/emoji-datasource@14.0.0/emoji.json';
 
 type
-  THasImageService = (hisUser, hisApple, hisGoogle, hisTwitter, hisFacebook);
-  THasImageServices = set of THasImageService;
+  TEmojiHasImageService = (hisUser, hisApple, hisGoogle, hisTwitter, hisFacebook);
+  TEmojiHasImageServices = set of TEmojiHasImageService;
 
   TEmojiCode = array [1..EmojiCodeMax] of Uint32;
   TEmojiVersion = Uint32;
@@ -47,7 +47,7 @@ type
     FSubCategory: utf8string;
     FSortOrder: integer;
     FAddedIn: TEmojiVersion;
-    FHasImageServices: THasImageServices;
+    FHasImageServices: TEmojiHasImageServices;
     function GetAddedInMajor: Uint8;
     function GetAddedInMinor: Uint8;
     procedure SetUnified(AValue: utf8string);
@@ -67,7 +67,7 @@ type
     property Category: utf8string read FCategory write FCategory;
     property SubCategory: utf8string read FSubCategory write FSubCategory;
     property SortOrder: integer read FSortOrder write FSortOrder;
-    property HasImageServices: THasImageServices read FHasImageServices write FHasImageServices;
+    property HasImageServices: TEmojiHasImageServices read FHasImageServices write FHasImageServices;
   end;
 
   TEmojiDataEntries = specialize TObjectList<TEmojiDataEntry>;
