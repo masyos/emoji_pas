@@ -1,9 +1,8 @@
 # emoji_pas
 
-Emoji utils for FreePascal.
+emoji-data unit for Lazarus (Free Pascal).
 
 [emoji-data](https://github.com/iamcal/emoji-data)  
-emoji-data Unit for Lazarus (Free Pascal).
 
 ## usage
 
