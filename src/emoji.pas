@@ -43,6 +43,9 @@ type
   { Emoji version }
   TEmojiVersion = Uint32;
 
+  { TEmojiError }
+  EEmojiError = class(Exception);
+
   { TEmojiDataEntry }
 
   TEmojiDataEntry = class
