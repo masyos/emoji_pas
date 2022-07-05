@@ -1,17 +1,22 @@
 (* SPDX-License-Identifier: MIT *)
 (*
-   Emoji for Free Pascal version 0.0.1
-   Copyright 2022 YOSHIDA, Masahiro.
+    Emoji data for Lazarus (Free Pascal) version 0.0.1
+
+    Copyright 2022 YOSHIDA, Masahiro.
+
+    https://github.com/masyos/emoji_pas
+
+	emoji-data - Easy to consume Emoji data and images @br
+    https://github.com/iamcal/emoji-data @br
+	https://cdn.jsdelivr.net/npm/emoji-datasource@14.0.0/emoji.json @br
+
  *)
 unit Emoji;
 
 {$mode ObjFPC}{$H+}
 
 (*
-emoji-data - Easy to consume Emoji data and images
-https://github.com/iamcal/emoji-data
 
-https://cdn.jsdelivr.net/npm/emoji-datasource@14.0.0/emoji.json
  *)
 
 interface
@@ -101,7 +106,7 @@ type
   TEmojiData = class
   private
     FCaseSensitive: boolean;
-    FAddedVersion: TEmojiVersion;
+    FRegisterdVersion: TEmojiVersion;
 
     FVersion: TEmojiVersion;
     FEntries: TEmojiDataEntries;
@@ -112,43 +117,75 @@ type
     function GetEntries(index: integer): TEmojiDataEntry;
 
   public
-    { constructor }
-    constructor Create(ACaseSensitive: boolean = false; AAddedIn: uint32 = 0);
+    { constructor
+      @param(ACaseSensitive is Distinguish the case of names when searching)
+      @param(ARegVer is Registered EmojiVersion, 0 is all register)
+    }
+    constructor Create(ACaseSensitive: boolean = false; ARegVer: TEmojiVersion = 0);
     { destructor }
     destructor Destroy; override;
 
-    { add entry. }
+    { add entry.
+      @param(entry is 1char emoji data, Management is delegated.)
+    }
     function Add(entry: TEmojiDataEntry): integer;
 
     { entries count. }
     function Count: Integer;
 
-    { find entry by name. }
+    { find entry by name.
+      @param(value is "CLDR Short Name")
+      @returns(entries index)
+    }
     function FindByName(const value: utf8string): integer;
-    { find entry by short-name. }
+    { find entry by short-name.
+	  @param(value is emoji-data Short Name)
+	  @returns(entries index)
+    }
     function FindByShortName(const value: utf8string): integer;
-    { find entry by text. }
+    { find entry by text.
+      @param(value is emoji char(UTF-8))
+      @returns(entries index)
+    }
     function FindByText(const value: utf8string): integer;
 
-    { Emojize }
+    { Emojize
+      @param(value is "CLDR Short Name")
+	  @returns(emoji char(utf8))
+    }
     function EmojizeByName(const value: utf8string): utf8string;
-    { Emojize }
+    { Emojize
+      @param(value is short-name)
+      @returns(emoji char(utf8))
+    }
     function EmojizeByShortName(const value: utf8string): utf8string;
-    { Demojize }
+    { Demojize
+      @param(value is emoji char(UTF-8))
+      @returns(emoji "CLDR Short Name")
+    }
     function DemojizeNameIn(const value: utf8string): utf8string;
-    { Demojize }
+    { Demojize
+      @param(value is emoji char(UTF-8))
+      @returns(emoji short-name)
+    }
     function DemojizeShortNameIn(const value: utf8string): utf8string;
 
-    { load from 'emoji.json' stream. }
+    { load from 'emoji.json' stream.
+      @param(Filename is 'emoji.json' format stream)
+    }
     procedure LoadFromStream(const Stream: TStream);
-    { load from 'emoji.json' file. }
+    { load from 'emoji.json' file.
+      @param(Filename is 'emoji.json' format file)
+    }
     procedure LoadFromFile(const Filename: string);
 
     { name is case sensitive ? }
     property CaseSensitive: boolean read FCaseSensitive;
     { emoji version }
     property Version: TEmojiVersion read FVersion;
-    { emoji entries }
+    { emoji entries
+      @param(index is Entries index)
+    }
     property Entries[index: integer]: TEmojiDataEntry read GetEntries;
   end;
 
@@ -400,10 +437,10 @@ end;
 
 
 
-constructor TEmojiData.Create(ACaseSensitive: boolean; AAddedIn: uint32);
+constructor TEmojiData.Create(ACaseSensitive: boolean; ARegVer: TEmojiVersion);
 begin
   FCaseSensitive := ACaseSensitive;
-  FAddedVersion := AAddedIn;
+  FRegisterdVersion := ARegVer;
   FVersion := 0;
   FEntries := TEmojiDataEntries.Create;
   FNameDict := TEmojiStrDict.Create;
@@ -427,7 +464,7 @@ begin
   Result := -1;
   if (entry.Name = EmptyStr) then
     Exit;
-  if (FAddedVersion > 0) and (entry.AddedIn > FAddedVersion) then
+  if (FRegisterdVersion > 0) and (entry.AddedIn > FRegisterdVersion) then
     Exit;
 
   s := entry.Name;
