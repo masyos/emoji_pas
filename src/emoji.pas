@@ -21,15 +21,21 @@ uses
   Generics.Collections;
 
 const
+  { Emoji Code Count Max }
   EmojiCodeMax = 16;
+  { emoji-datasource URL }
   EmojiDataSourceUrl: utf8string =
     'https://cdn.jsdelivr.net/npm/emoji-datasource@14.0.0/emoji.json';
 
 type
+  { Emoji has image service }
   TEmojiHasImageService = (hisUser, hisApple, hisGoogle, hisTwitter, hisFacebook);
+  { Emoji has image services }
   TEmojiHasImageServices = set of TEmojiHasImageService;
 
+  { Emoji Code }
   TEmojiCode = array [1..EmojiCodeMax] of Uint32;
+  { Emoji version }
   TEmojiVersion = Uint32;
 
   { TEmojiDataEntry }
@@ -41,7 +47,7 @@ type
     FCode: TEmojiCode;
     FText: utf8string;
     FNonQualified: utf8string;
-	FShortName: utf8string;
+    FShortName: utf8string;
   	FShortNames: TStringList;
     FCategory: utf8string;
     FSubCategory: utf8string;
@@ -52,25 +58,42 @@ type
     function GetAddedInMinor: Uint8;
     procedure SetUnified(AValue: utf8string);
   public
+    { constructor }
     constructor Create;
+    { destructor }
     destructor Destroy; override;
 
+    { emoji name }
     property Name: utf8string read FName write FName;
+    { emoji unified }
     property Unified: utf8string read FUnified write SetUnified;
+    { emoji utf8 text }
     property Text: utf8string read FText;
+    { emoji non qualified }
     property NonQualified: utf8string read FNonQualified write FNonQualified;
-	property ShortName: utf8string read FShortName write FShortName;
+    { emoji short name }
+    property ShortName: utf8string read FShortName write FShortName;
+    { emoji short names }
   	property ShortNames: TStringList read FShortNames;
+    { emoji added in version (Emoji Version) }
     property AddedIn: TEmojiVersion read FAddedIn write FAddedIn;
+    { emoji added in version majro  }
     property AddedInMajor: Uint8 read GetAddedInMajor;
+    { emoji added in version minor }
     property AddedInMinor: Uint8 read GetAddedInMinor;
+    { emoji category }
     property Category: utf8string read FCategory write FCategory;
+    { emoji sub category }
     property SubCategory: utf8string read FSubCategory write FSubCategory;
+    { emoji sort order }
     property SortOrder: integer read FSortOrder write FSortOrder;
+    { emoji has image services }
     property HasImageServices: TEmojiHasImageServices read FHasImageServices write FHasImageServices;
   end;
 
+  { Emnoji data entries }
   TEmojiDataEntries = specialize TObjectList<TEmojiDataEntry>;
+  { Emoji string to index dictionary }
   TEmojiStrDict = specialize TDictionary<utf8string, integer>;
 
   { TEmojiData }
@@ -129,18 +152,27 @@ type
     property Entries[index: integer]: TEmojiDataEntry read GetEntries;
   end;
 
-{ emoji version utils. }
+(* emoji version utils. *)
 
+{ make emoji version }
 function MakeEmojiVersion(AMajor, AMinor, APatch, ABuild: Uint8): TEmojiVersion;
+{ get emoji major version }
 function GetEmojiVersionMajor(value: TEmojiVersion): Uint8;
+{ get emoji minor version }
 function GetEmojiVersionMinor(value: TEmojiVersion): Uint8;
+{ get emoji patch version }
 function GetEmojiVersionPatch(value: TEmojiVersion): Uint8;
+{ get emoji build version }
 function GetEmojiVersionBuild(value: TEmojiVersion): Uint8;
 
 
 (* emoji-data: json format. *)
+
+{ create EmojiData from string }
 function GetEmojiData(const value: utf8string; CaseSensitive: boolean = false; RegUpVer: uint32 = 0): TEmojiData;
+{ create EmojiData from file }
 function GetEmojiDataFromFile(const filename: string; CaseSensitive: boolean = false; RegUpVer: uint32 = 0): TEmojiData;
+{ create EmojiData from emoji-datasource URL }
 function GetEmojiDataFromEmojiDataSource(CaseSensitive: boolean = false; RegUpVer: uint32 = 0): TEmojiData;
 
 
