@@ -17,11 +17,12 @@ var
   str: utf8string;
 begin
   EmojiData  := GetEmojiDataFromEmojiDataSource;
-
-  str := FEmojiData.EmojizeByName('GRINNING FACE');
-  // str = '😀'
-
-  EmojiData.Free;
+  try
+    str := EmojiData.EmojizeByName('GRINNING FACE');
+    // str = '😀'
+  finaly
+    EmojiData.Free;
+  end;
 end;
 ```
 
