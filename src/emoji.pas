@@ -15,9 +15,6 @@ unit Emoji;
 
 {$mode ObjFPC}{$H+}
 
-(*
-
- *)
 
 interface
 
@@ -56,7 +53,7 @@ type
     FText: utf8string;
     FNonQualified: utf8string;
     FShortName: utf8string;
-  	FShortNames: TStringList;
+    FShortNames: TStringList;
     FCategory: utf8string;
     FSubCategory: utf8string;
     FSortOrder: integer;
@@ -82,7 +79,7 @@ type
     { emoji short name }
     property ShortName: utf8string read FShortName write FShortName;
     { emoji short names }
-  	property ShortNames: TStringList read FShortNames;
+    property ShortNames: TStringList read FShortNames;
     { emoji added in version (Emoji Version) }
     property AddedIn: TEmojiVersion read FAddedIn write FAddedIn;
     { emoji added in version majro  }
@@ -142,8 +139,8 @@ type
     }
     function FindByName(const value: utf8string): integer;
     { find entry by short-name.
-	  @param(value is emoji-data Short Name)
-	  @returns(entries index)
+      @param(value is emoji-data Short Name)
+      @returns(entries index)
     }
     function FindByShortName(const value: utf8string): integer;
     { find entry by text.
@@ -154,7 +151,7 @@ type
 
     { Emojize
       @param(value is "CLDR Short Name")
-	  @returns(emoji char(utf8))
+      @returns(emoji char(utf8))
     }
     function EmojizeByName(const value: utf8string): utf8string;
     { Emojize
@@ -220,12 +217,12 @@ function GetEmojiDataFromEmojiDataSource(CaseSensitive: boolean = false; RegUpVe
 implementation
 
 uses
-  fpjson, jsonparser, 
+  fpjson, jsonparser,
   fphttpclient, opensslsockets;
 
 //  0xxx-xxxx
 //  110y-yyyx 	10xx-xxxx
-// 	1110-yyyy 	10yx-xxxx 	10xx-xxxx 	
+//  1110-yyyy 	10yx-xxxx 	10xx-xxxx 	
 //  1111-0yyy 	10yy-xxxx 	10xx-xxxx 	10xx-xxxx
 function CodeToStr(code: Uint32): utf8string;
 begin
@@ -330,7 +327,7 @@ end;
 function MakeEmojiVersion(AMajor, AMinor, APatch, ABuild: Uint8): TEmojiVersion;
 begin
   Result := (Uint32(AMajor) shl 24) or
-  			    (Uint32(AMinor) shl 16) or
+            (Uint32(AMinor) shl 16) or
             (Uint32(APatch) shl  8) or
             (Uint32(ABuild));
 end;
@@ -358,7 +355,7 @@ end;
 
 (*
   [{
-	"name":"HASH KEY",
+    "name":"HASH KEY",
     "unified":"0023-FE0F-20E3",
     "non_qualified":"0023-20E3",
     "docomo":"E6E0",
@@ -420,7 +417,7 @@ begin
     { Allow redirections }
     Client.AllowRedirect := true;
     Client.Get(EmojiDataSourceUrl, Strm);
-  	s := Strm.DataString;
+    s := Strm.DataString;
   finally
     Strm.Free;
     Client.Free;
@@ -462,7 +459,7 @@ end;
 
 function TEmojiData.Add(entry: TEmojiDataEntry): integer;
 var
-  s: utf8string;
+  s, sit: utf8string;
 begin
   Result := -1;
   if (entry.Name = EmptyStr) then
@@ -470,6 +467,7 @@ begin
   if (FRegisterdVersion > 0) and (entry.AddedIn > FRegisterdVersion) then
     Exit;
 
+  // name.
   s := entry.Name;
   if not FCaseSensitive then
     s := UpperCase(s);
@@ -480,11 +478,23 @@ begin
   Result := FEntries.Add(entry);
   FNameDict.Add(s, Result);
 
+  // short name.
   s := entry.ShortName;
   if not FCaseSensitive then
     s := UpperCase(s);
   FShortNameDict.Add(s, Result);
 
+  for sit in entry.ShortNames do begin
+    s := sit;
+    if not FCaseSensitive then begin
+      s := UpperCase(s);
+    end;
+    if not FShortNameDict.ContainsKey(s) then begin
+      FShortNameDict.Add(s, Result);
+    end;
+  end;
+
+  // text.
   FTextDict.Add(entry.Text, Result);
 
   if entry.AddedIn > FVersion then begin
@@ -585,19 +595,30 @@ var
   obj: TJsonObject;
   index, sindex: integer;
   entry: TEmojiDataEntry;
+  cnt: SizeInt;
 begin
   dat := GetJSON(Stream);
   if not Assigned(dat) then Exit;
   root := dat as TJsonArray;
   if not Assigned(root) then Exit;
 
-  for index := 0 to root.Count-1 do begin
+  cnt := root.Count-1;
+  for index := 0 to cnt do begin
     obj := root.Items[index] as TJsonObject;
-    if not Assigned(obj) then
+    if not Assigned(obj) then begin
       Break;
+    end;
+
     entry := TEmojiDataEntry.Create;
     try
       entry.Name := obj.Strings['name'];
+
+      // Ummm...
+      // https://github.com/iamcal/emoji-data/issues/188
+      if (obj.Strings['name'] = 'MAN IN TUXEDO') and (obj.Strings['unified'] = '1F935') then begin
+        entry.Name := 'PERSON IN TUXEDO';
+      end;
+
       entry.ShortName:= obj.Strings['short_name'];
       entry.Unified:= obj.Strings['unified'];
       entry.NonQualified:=obj.Get('non_qualified', EmptyStr); // null ok.
@@ -658,12 +679,12 @@ var
 begin
   if FUnified=AValue then Exit;
   FUnified:=AValue;
+  FText := EmptyStr;
 
   // set code
   term := DecodeUnified(AValue, FCode);
 
   // set text
-  FText := EmptyStr;
   for start := 1 to term do begin
     FText := FText + CodeToStr(FCode[start]);
   end;

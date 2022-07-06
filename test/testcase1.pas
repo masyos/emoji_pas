@@ -6,6 +6,7 @@ interface
 
 uses
   Classes, SysUtils, fpcunit, testutils, testregistry,
+  fpjson,
   Emoji;
 
 type
@@ -15,6 +16,7 @@ type
   TTestCase1= class(TTestCase)
   protected
     FEmojiData: TEmojiData;
+    FJson: TJsonData;
 
     procedure SetUp; override;
     procedure TearDown; override;
@@ -22,9 +24,12 @@ type
     procedure TestHookUp;
   	procedure TextEmojiMatch;
 
+    procedure TestJsonMatch;
   end;
 
 implementation
+
+
 
 const
   LocalEmojiDataSourceFilename = '..\local\emoji-datasource\emoji.json';
@@ -37,8 +42,6 @@ var
   i: integer;
   s: utf8string;
 begin
-//  Fail('Write your own test');
-
   i := FEmojiData.FindByName(EmojiName);
   if i < 0 then
     Fail('FindByName error: ' + EmojiName);
@@ -76,11 +79,51 @@ begin
   end;
 end;
 
+procedure TTestCase1.TestJsonMatch;
+var
+  root: TJsonArray;
+  obj: TJsonObject;
+  index, cnt, val: integer;
+begin
+  root := FJson as TJsonArray;
+  if not Assigned(root) then
+    Fail('Error: json root is not array');
+
+  cnt := root.Count-1;
+  for index := 0 to cnt do begin
+    obj := root.Items[index] as TJsonObject;
+    if not Assigned(obj) then
+      Fail('Error: not json object');
+
+    val := FEmojiData.FindByName(obj.Strings['name']);
+    if val < 0 then
+      Fail('Error: emoji name not found [' + IntToStr(index) + '] : ' + obj.Strings['name'] );
+  end;
+
+  if root.Count <> FEmojiData.Count then
+    Fail('Error: count miss match (' + IntToStr(FEmojiData.Count) + '/' + IntToStr(root.Count) + ')' );
+end;
+
 
 procedure TTestCase1.SetUp;
+var
+  stream: TStringStream;
+  s: utf8string;
 begin
+  stream := TStringStream.Create;
+  try
+    stream.LoadFromFile(LocalEmojiDataSourceFilename);
+    s := stream.DataString;
+  finally
+    stream.Free;
+  end;
+
+  FJson := GetJSON(s);
+  if not Assigned(FJson) then
+    Fail('load error: emoji-data source json.');
+
   //FEmojiData := GetEmojiDataFromEmojiDataSource;
-  FEmojiData := GetEmojiDataFromFile(LocalEmojiDataSourceFilename);
+  FEmojiData := GetEmojiData(s);
   if not Assigned(FEmojiData) then
     Fail('load error: emoji-data source.');
 end;
