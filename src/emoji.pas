@@ -30,10 +30,10 @@ const
     'https://cdn.jsdelivr.net/npm/emoji-datasource@14.0.0/emoji.json';
 
 type
-  { Emoji has image service }
-  TEmojiHasImageService = (hisUser, hisApple, hisGoogle, hisTwitter, hisFacebook);
-  { Emoji has image services }
-  TEmojiHasImageServices = set of TEmojiHasImageService;
+  { Emoji vender }
+  TEmojiVender = (evUser, evApple, evGoogle, evTwitter, evFacebook);
+  { Emoji venders }
+  TEmojiVenders = set of TEmojiVender;
 
   { Emoji Code }
   TEmojiCode = array [1..EmojiCodeMax] of Uint32;
@@ -58,7 +58,7 @@ type
     FSubCategory: utf8string;
     FSortOrder: integer;
     FAddedIn: TEmojiVersion;
-    FHasImageServices: TEmojiHasImageServices;
+    FVenders: TEmojiVenders;
     function GetAddedInMajor: Uint8;
     function GetAddedInMinor: Uint8;
     procedure SetUnified(AValue: utf8string);
@@ -92,8 +92,8 @@ type
     property SubCategory: utf8string read FSubCategory write FSubCategory;
     { emoji sort order }
     property SortOrder: integer read FSortOrder write FSortOrder;
-    { emoji has image services }
-    property HasImageServices: TEmojiHasImageServices read FHasImageServices write FHasImageServices;
+    { emoji vender }
+    property Venders: TEmojiVenders read FVenders write FVenders;
   end;
 
   { Emnoji data entries }
@@ -170,14 +170,24 @@ type
     }
     function DemojizeShortNameIn(const value: utf8string): utf8string;
 
-    { load from 'emoji.json' stream.
-      @param(Filename is 'emoji.json' format stream)
+    { load from '.json' stream.
+      @param(Filename is '.json' format stream)
     }
     procedure LoadFromStream(const Stream: TStream);
-    { load from 'emoji.json' file.
-      @param(Filename is 'emoji.json' format file)
+    { load from '.json' file.
+      @param(Filename is '.json' format file)
     }
     procedure LoadFromFile(const Filename: string);
+
+    { save to '.json' stream.
+      @param(Filename is '.json' format stream)
+    }
+    procedure SaveToStream(const Stream: TStream);
+
+    { sace to '.json' file.
+      @param(Filename is '.json' format file)
+    }
+    procedure SaveToFile(const Filename: string);
 
     { name is case sensitive ? }
     property CaseSensitive: boolean read FCaseSensitive;
@@ -220,10 +230,10 @@ uses
   fpjson, jsonparser,
   fphttpclient, opensslsockets;
 
-//  0xxx-xxxx
-//  110y-yyyx 	10xx-xxxx
-//  1110-yyyy 	10yx-xxxx 	10xx-xxxx 	
-//  1111-0yyy 	10yy-xxxx 	10xx-xxxx 	10xx-xxxx
+//  00 0000..00 007f    0xxx-xxxx
+//  00 0080..00 07ff    110y-yyyx 	10xx-xxxx
+//  00 0800..00 ffff    1110-yyyy 	10yx-xxxx 	10xx-xxxx
+//  01 0000..10 ffff    1111-0yyy 	10yy-xxxx 	10xx-xxxx 	10xx-xxxx
 function CodeToStr(code: Uint32): utf8string;
 begin
   Result := EmptyStr;
@@ -238,10 +248,10 @@ begin
     SetLength(Result, 3);
     Result[3] := Chr($80 or ((code       ) and $0000003F));
     Result[2] := Chr($80 or ((code shr  6) and $0000003F));
-    Result[1] := Chr($E0 or ((code shr 12) and $00000007));
+    Result[1] := Chr($E0 or ((code shr 12) and $0000000F));
   end else begin // < $110000.
     SetLength(Result, 4);
-    Result[4] := Chr($80 or (code and $0000003F));
+    Result[4] := Chr($80 or ((code       ) and $0000003F));
     Result[3] := Chr($80 or ((code shr  6) and $0000003F));
     Result[2] := Chr($80 or ((code shr 12) and $0000003F));
     Result[1] := Chr($F0 or ((code shr 18) and $00000007));
@@ -279,6 +289,9 @@ end;
 
 
 function DecodeUnified(const value: utf8string; var code: TEmojiCode): integer;
+const
+  UnifiedSep = '-';
+//  UnifiedSep = '_';
 var
   idx, start, term: integer;
   s: utf8string;
@@ -290,14 +303,14 @@ begin
   start := 1;
   idx := 1;
 
-  term := Pos('-', value, start);
+  term := Pos(UnifiedSep, value, start);
   while term > 0 do begin
     s := '$' + Copy(value, start, term - start);
     code[idx] := StrToInt(s);
     Inc(idx);
     start := term + 1;
 
-    term := Pos('-', value, start);
+    term := Pos(UnifiedSep, value, start);
   end;
   s := '$' + Copy(value, start);
   code[idx] := StrToInt(s);
@@ -627,13 +640,13 @@ begin
       entry.SortOrder:=obj.Integers['sort_order'];
       entry.AddedIn := DecodeAddedIn(obj.Strings['added_in']);
       if obj.Booleans['has_img_apple'] then
-        entry.HasImageServices := entry.HasImageServices + [hisApple];
+        entry.Venders := entry.Venders + [evApple];
       if obj.Booleans['has_img_google'] then
-        entry.HasImageServices := entry.HasImageServices + [hisGoogle];
+        entry.Venders := entry.Venders + [evGoogle];
       if obj.Booleans['has_img_twitter'] then
-        entry.HasImageServices := entry.HasImageServices + [hisTwitter];
+        entry.Venders := entry.Venders + [evTwitter];
       if obj.Booleans['has_img_facebook'] then
-        entry.HasImageServices := entry.HasImageServices + [hisFacebook];
+        entry.Venders := entry.Venders + [evFacebook];
 
       ary := obj.Arrays['short_names'];
       for sindex := 0 to ary.Count-1 do begin
@@ -655,6 +668,25 @@ begin
   stream := TFileStream.Create(Filename, fmOpenRead or fmShareDenyWrite);
   try
     LoadFromStream(stream);
+  finally
+    stream.Free;
+  end;
+end;
+
+procedure TEmojiData.SaveToStream(const Stream: TStream);
+var
+  dat: TJsonData;
+begin
+
+end;
+
+procedure TEmojiData.SaveToFile(const Filename: string);
+var
+  stream: TFileStream;
+begin
+  stream := TFileStream.Create(Filename, fmCreate or fmShareDenyRead);
+  try
+    SaveToStream(stream);
   finally
     stream.Free;
   end;
