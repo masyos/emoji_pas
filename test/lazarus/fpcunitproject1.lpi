@@ -42,7 +42,7 @@
         <UnitName Value="TestCase1"/>
       </Unit>
       <Unit>
-        <Filename Value="..\src\emoji.pas"/>
+        <Filename Value="..\..\src\emoji.pas"/>
         <IsPartOfProject Value="True"/>
         <UnitName Value="Emoji"/>
       </Unit>
@@ -56,7 +56,7 @@
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
-      <OtherUnitFiles Value="..\src"/>
+      <OtherUnitFiles Value="..\..\src"/>
       <UnitOutputDirectory Value="lib\$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <Linking>

@@ -13,7 +13,25 @@
  *)
 unit Emoji;
 
+{$IFDEF FPC}
 {$mode ObjFPC}{$H+}
+{$ENDIF}
+
+{$IFDEF DCC}
+  // Delphi.
+  {$DEFINE DELPHI}
+  {$IFDEF VER240 or VER250 or VER260}
+    {$DEFINE DELPHI_USES_DBXJSON}
+  {$ELSE}
+    {$DEFINE DELPHI_USES_JSON}   // XE6 or later.
+  {$ENDIF}
+  {$IFDEF VER240 or VER250 or VER260 or VER270 or VER280}
+    {$DEFINE DELPHI_USES_INDY}
+  {$ELSE}
+    {$DEFINE DELPHI_USES_HTTPCLIENT} // XE8 or later.
+  {$ENDIF}
+{$ENDIF}
+
 
 
 interface
@@ -97,9 +115,9 @@ type
   end;
 
   { Emnoji data entries }
-  TEmojiDataEntries = specialize TObjectList<TEmojiDataEntry>;
+  TEmojiDataEntries = {$IFDEF FPC}specialize{$ENDIF} TObjectList<TEmojiDataEntry>;
   { Emoji string to index dictionary }
-  TEmojiStrDict = specialize TDictionary<utf8string, integer>;
+  TEmojiStrDict = {$IFDEF FPC}specialize{$ENDIF} TDictionary<utf8string, integer>;
 
   { TEmojiData }
 
@@ -227,8 +245,21 @@ function GetEmojiDataFromEmojiDataSource(CaseSensitive: boolean = false; RegUpVe
 implementation
 
 uses
-  fpjson, jsonparser,
-  fphttpclient, opensslsockets;
+{$IFDEF FPC}
+  fpjson, jsonparser, fphttpclient, opensslsockets;
+{$ENDIF}
+{$IFDEF DELPHI}
+  {$IFDEF DELPHI_USES_JSON}
+    System.JSON,    // XE6 or later.
+  {$ELSE}
+    Data.DBXPlatform, Data.DBXJSON,
+  {$ENDIF}
+  {$IFDEF DELPHI_USES_HTTPCLIENT}
+    System.Net.HttpClientComponent;    // XE8 or later.
+  {$ELSE}
+    IdHTTP, IdSSLOpenSSL;
+  {$ENDIF}
+{$ENDIF}
 
 //  00 0000..00 007f    0xxx-xxxx
 //  00 0080..00 07ff    110y-yyyx 	10xx-xxxx
@@ -236,25 +267,25 @@ uses
 //  01 0000..10 ffff    1111-0yyy 	10yy-xxxx 	10xx-xxxx 	10xx-xxxx
 function CodeToStr(code: Uint32): utf8string;
 begin
-  Result := EmptyStr;
+  Result := utf8string(EmptyStr);
   if code < $80 then begin
     SetLength(Result, 1);
-    Result[1] := Chr(code);
-  end else if code < $800 then begin 
+    Result[1] := AnsiChar(Chr(code));
+  end else if code < $800 then begin
     SetLength(Result, 2);
-    Result[2] := Chr($80 or ((code      ) and $0000003F));
-    Result[1] := Chr($C0 or ((code shr 6) and $0000001F));
+    Result[2] := AnsiChar(Chr($80 or ((code      ) and $0000003F)));
+    Result[1] := AnsiChar(Chr($C0 or ((code shr 6) and $0000001F)));
   end else if code < $10000 then begin
     SetLength(Result, 3);
-    Result[3] := Chr($80 or ((code       ) and $0000003F));
-    Result[2] := Chr($80 or ((code shr  6) and $0000003F));
-    Result[1] := Chr($E0 or ((code shr 12) and $0000000F));
+    Result[3] := AnsiChar(Chr($80 or ((code       ) and $0000003F)));
+    Result[2] := AnsiChar(Chr($80 or ((code shr  6) and $0000003F)));
+    Result[1] := AnsiChar(Chr($E0 or ((code shr 12) and $0000000F)));
   end else begin // < $110000.
     SetLength(Result, 4);
-    Result[4] := Chr($80 or ((code       ) and $0000003F));
-    Result[3] := Chr($80 or ((code shr  6) and $0000003F));
-    Result[2] := Chr($80 or ((code shr 12) and $0000003F));
-    Result[1] := Chr($F0 or ((code shr 18) and $00000007));
+    Result[4] := AnsiChar(Chr($80 or ((code       ) and $0000003F)));
+    Result[3] := AnsiChar(Chr($80 or ((code shr  6) and $0000003F)));
+    Result[2] := AnsiChar(Chr($80 or ((code shr 12) and $0000003F)));
+    Result[1] := AnsiChar(Chr($F0 or ((code shr 18) and $00000007)));
   end;
 end;
 
@@ -267,6 +298,7 @@ begin
   if Length(str) < 1 then Exit;
   
   Result := 1;
+  len := 1;
   code := Ord(str[Result]);
   if (code < $80) then Exit;
 
@@ -417,22 +449,55 @@ end;
 function GetEmojiDataFromEmojiDataSource(CaseSensitive: boolean;
   RegUpVer: uint32): TEmojiData;
 var
+{$IFDEF FPC}
   Client: TFPHttpClient;
+{$ENDIF}
+{$IFDEF DELPHI_USES_HTTPCLIENT}
+  Client: TNetHTTPClient;
+{$ENDIF}
+{$IFDEF DELPHI_USES_INDY}
+  Client: TIdHTTP;
+  OSSL: TIdSSLIOHandlerSocketOpenSSL;
+{$ENDIF}
   Strm: TStringStream;
   s: utf8string;
 begin
   Result := nil;
   s := EmptyStr;
 
+{$IFDEF FPC}
   Client := TFPHttpClient.Create(nil);
-  Strm := TStringStream.Create;
   try
-    { Allow redirections }
-    Client.AllowRedirect := true;
-    Client.Get(EmojiDataSourceUrl, Strm);
-    s := Strm.DataString;
+{$ENDIF}
+{$IFDEF DELPHI_USES_HTTPCLIENT}
+  Client:= TNetHTTPClient.Create(nil);
+  try
+{$ENDIF}
+{$IFDEF DELPHI_USES_INDY}
+  Client := TIdHttp.Create(nil);
+  try
+    OSSL := TIdSSLIOHandlerSocketOpenSSL.Create(nil);
+    try
+      OSSL.SSLOptions.Method := sslvTLSv1_2;
+      Client.IOHandler := OSSL;
+{$ENDIF}
+    Strm := TStringStream.Create;
+    try
+{$IFDEF FPC}
+      { Allow redirections }
+      Client.AllowRedirect := true;
+{$ENDIF}
+      Client.Get(EmojiDataSourceUrl, Strm);
+      s := Strm.DataString;
+    finally
+      Strm.Free;
+    end;
+{$IFDEF DELPHI_USES_INDY}
   finally
-    Strm.Free;
+    OSSL.Free;
+  end;
+{$ENDIF}
+  finally
     Client.Free;
   end;
 
@@ -599,39 +664,86 @@ begin
   end;
 end;
 
+{$IFDEF DELPHI}
+function StreamToString(const AStream: TStream): utf8string;
+var
+  ss: TStringStream;
+begin
+  Result := EmptyStr;
+  if not Assigned(AStream) then Exit;
+  ss := TStringStream.Create;
+  try
+    ss.CopyFrom(AStream, 0);
+    Result := ss.DataString;
+  finally
+    ss.Free;
+  end;
+end;
+{$ENDIF}
+
 
 
 procedure TEmojiData.LoadFromStream(const Stream: TStream);
 var
-  dat: TJSONData;
   root, ary: TJsonArray;
   obj: TJsonObject;
   index, sindex: integer;
   entry: TEmojiDataEntry;
-  cnt: SizeInt;
+  cnt: NativeInt;
 begin
-  dat := GetJSON(Stream);
-  if not Assigned(dat) then Exit;
-  root := dat as TJsonArray;
+{$IFDEF FPC}
+  root := GetJSON(Stream) as TJsonArray;
+{$ENDIF}
+{$IFDEF DELPHI}
+  root := TJSONObject.ParseJSONValue(StreamToString(Stream)) as TJSONArray;
+{$ENDIF}
   if not Assigned(root) then Exit;
 
+{$IFDEF FPC and DELPHI_USES_JSON}
   cnt := root.Count-1;
+{$ENDIF}
+{$IFDEF DELPHI_USES_DBXJSON}
+  cnt := root.Size-1;
+{$ENDIF}
   for index := 0 to cnt do begin
+{$IFDEF FPC and DELPHI_USES_JSON}
     obj := root.Items[index] as TJsonObject;
+{$ENDIF}
+{$IFDEF DELPHI_USES_DBXJSON}
+    obj := root.Get(index) as TJsonObject;
+{$ENDIF}
+
     if not Assigned(obj) then begin
       Break;
     end;
 
     entry := TEmojiDataEntry.Create;
     try
+{$IFDEF FPC}
       entry.Name := obj.Strings['name'];
+{$ENDIF}
+{$IFDEF DELPHI_USES_JSON}
+      entry.Name := obj.GetValue<string>('name');
+{$ENDIF}
+{$IFDEF DELPHI_USES_DBXJSON}
+      entry.Name := obj.Get('name').JsonValue.Value;
+{$ENDIF}
 
       // Ummm...
       // https://github.com/iamcal/emoji-data/issues/188
+{$IFDEF FPC}
       if (obj.Strings['name'] = 'MAN IN TUXEDO') and (obj.Strings['unified'] = '1F935') then begin
+{$ENDIF}
+{$IFDEF DELPHI_USES_JSON}
+      if (obj.GetValue<string>('name') = 'MAN IN TUXEDO') and (obj.GetValue<string>('unified') = '1F935') then begin
+{$ENDIF}
+{$IFDEF DELPHI_USES_DBXJSON}
+      if (obj.Get('name').JsonValue.Value = 'MAN IN TUXEDO') and (obj.Get('unified').JsonValue.Value = '1F935') then begin
+{$ENDIF}
         entry.Name := 'PERSON IN TUXEDO';
       end;
 
+{$IFDEF FPC}
       entry.ShortName:= obj.Strings['short_name'];
       entry.Unified:= obj.Strings['unified'];
       entry.NonQualified:=obj.Get('non_qualified', EmptyStr); // null ok.
@@ -639,6 +751,28 @@ begin
       entry.SubCategory:=obj.Strings['subcategory'];
       entry.SortOrder:=obj.Integers['sort_order'];
       entry.AddedIn := DecodeAddedIn(obj.Strings['added_in']);
+{$ENDIF}
+{$IFDEF DELPHI_USES_JSON}
+      entry.ShortName:= obj.GetValue<string>('short_name');
+      entry.Unified:= obj.GetValue<string>('unified');
+//      entry.NonQualified:=obj.Get('non_qualified', EmptyStr); // null ok.
+      entry.Category:= obj.GetValue<string>('category');
+      entry.SubCategory:=obj.GetValue<string>('subcategory');
+      entry.SortOrder:=obj.GetValue<integer>('sort_order');
+      entry.AddedIn := DecodeAddedIn(obj.GetValue<string>('added_in'));
+{$ENDIF}
+{$IFDEF DELPHI_USES_DBXJSON}
+      entry.ShortName:= obj.Get('short_name').JsonValue.Value;
+      entry.Unified:= obj.Get('unified').JsonValue.Value;
+//      entry.NonQualified:=obj.Get('non_qualified', EmptyStr); // null ok.
+      entry.Category:= obj.Get('category').JsonValue.Value;
+      entry.SubCategory:=obj.Get('subcategory').JsonValue.Value;
+      entry.SortOrder:=StrToInt(obj.Get('sort_order').JsonValue.Value);
+      entry.AddedIn := DecodeAddedIn(obj.Get('added_in').JsonValue.Value);
+{$ENDIF}
+
+
+{$IFDEF FPC}
       if obj.Booleans['has_img_apple'] then
         entry.Venders := entry.Venders + [evApple];
       if obj.Booleans['has_img_google'] then
@@ -647,10 +781,33 @@ begin
         entry.Venders := entry.Venders + [evTwitter];
       if obj.Booleans['has_img_facebook'] then
         entry.Venders := entry.Venders + [evFacebook];
+{$ENDIF}
 
+{$IFDEF FPC}
       ary := obj.Arrays['short_names'];
+{$ENDIF}
+{$IFDEF DELPHI_USES_JSON}
+      ary :=  obj.GetValue<TJSONArray>('short_names');
+{$ENDIF}
+{$IFDEF DELPHI_USES_DBXJSON}
+      ary :=  obj.Get('short_names').JsonValue as TJsonArray;
+{$ENDIF}
+
+{$IFDEF FPC and DELPHI_USES_JSON}
       for sindex := 0 to ary.Count-1 do begin
+{$ENDIF}
+{$IFDEF DELPHI_USES_DBXJSON}
+      for sindex := 0 to ary.Size-1 do begin
+{$ENDIF}
+{$IFDEF FPC}
         entry.ShortNames.Add(ary.Strings[sindex]);
+{$ENDIF}
+{$IFDEF DELPHI_USES_JSON}
+        entry.ShortNames.Add(ary.Items[sindex].ToString);
+{$ENDIF}
+{$IFDEF DELPHI_USES_DBXJSON}
+        entry.ShortNames.Add(ary.Get(sindex).Value);
+{$ENDIF}
       end;
 
       Add(entry);
@@ -674,10 +831,8 @@ begin
 end;
 
 procedure TEmojiData.SaveToStream(const Stream: TStream);
-var
-  dat: TJsonData;
 begin
-
+  // not implement.
 end;
 
 procedure TEmojiData.SaveToFile(const Filename: string);

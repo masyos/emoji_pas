@@ -32,7 +32,7 @@ implementation
 
 
 const
-  LocalEmojiDataSourceFilename = '..\local\emoji-datasource\emoji.json';
+  LocalEmojiDataSourceFilename = '..\..\local\emoji-datasource\emoji.json';
 
   EmojiName = 'GRINNING FACE';
   EmojiText = '😀';
