@@ -29,6 +29,7 @@ unit Emoji;
     {$DEFINE DELPHI_USES_INDY}
   {$ELSE}
     {$DEFINE DELPHI_USES_HTTPCLIENT} // XE8 or later.
+    {$DEFINE EMOJI_USE_WIDESTRUTILS}
   {$ENDIF}
 {$ENDIF}
 
@@ -249,6 +250,9 @@ uses
   fpjson, jsonparser, fphttpclient, opensslsockets;
 {$ENDIF}
 {$IFDEF DELPHI}
+  {$IFDEF EMOJI_USE_WIDESTRUTILS}
+    WideStrUtils,
+  {$ENDIF}
   {$IFDEF DELPHI_USES_JSON}
     System.JSON,    // XE6 or later.
   {$ELSE}
@@ -355,8 +359,7 @@ var
   l, h: uint32;
 begin
   Result := 0;
-  if value = EmptyStr then Exit;
-  h := 0;
+  if value = '' then Exit;
   l := 0;
   sep := Pos('.', value);
   if sep > 0 then begin
@@ -463,7 +466,7 @@ var
   s: utf8string;
 begin
   Result := nil;
-  s := EmptyStr;
+  s := '';
 
 {$IFDEF FPC}
   Client := TFPHttpClient.Create(nil);
@@ -540,7 +543,7 @@ var
   s, sit: utf8string;
 begin
   Result := -1;
-  if (entry.Name = EmptyStr) then
+  if (entry.Name = '') then
     Exit;
   if (FRegisterdVersion > 0) and (entry.AddedIn > FRegisterdVersion) then
     Exit;
@@ -548,7 +551,12 @@ begin
   // name.
   s := entry.Name;
   if not FCaseSensitive then
+{$IFDEF FPC}
     s := UpperCase(s);
+{$ENDIF}
+{$IFDEF DCC}
+    s := UTF8UpperCase(s);
+{$ENDIF}
   if FNameDict.ContainsKey(s) then begin
     Result := FNameDict[s];
     Exit;
@@ -559,13 +567,23 @@ begin
   // short name.
   s := entry.ShortName;
   if not FCaseSensitive then
+{$IFDEF FPC}
     s := UpperCase(s);
+{$ENDIF}
+{$IFDEF DCC}
+    s := UTF8UpperCase(s);
+{$ENDIF}
   FShortNameDict.Add(s, Result);
 
   for sit in entry.ShortNames do begin
     s := sit;
     if not FCaseSensitive then begin
-      s := UpperCase(s);
+{$IFDEF FPC}
+     s := UpperCase(s);
+{$ENDIF}
+{$IFDEF DCC}
+      s := UTF8UpperCase(s);
+{$ENDIF}
     end;
     if not FShortNameDict.ContainsKey(s) then begin
       FShortNameDict.Add(s, Result);
@@ -592,7 +610,12 @@ begin
   Result := -1;
   s := value;
   if not FCaseSensitive then
+{$IFDEF FPC}
     s := UpperCase(s);
+{$ENDIF}
+{$IFDEF DCC}
+    s := UTF8UpperCase(s);
+{$ENDIF}
   if FNameDict.ContainsKey(s) then begin
     Result := FNameDict[s];
   end;
@@ -605,7 +628,12 @@ begin
   Result := -1;
   s := value;
   if not FCaseSensitive then
+{$IFDEF FPC}
     s := UpperCase(s);
+{$ENDIF}
+{$IFDEF DCC}
+    s := UTF8UpperCase(s);
+{$ENDIF}
   if FShortNameDict.ContainsKey(s) then begin
     Result := FShortNameDict[s];
   end;
@@ -623,7 +651,7 @@ function TEmojiData.EmojizeByName(const value: utf8string): utf8string;
 var
   i: integer;
 begin
-  Result := EmptyStr;
+  Result := '';
   i := FindByName(value);
   if i >= 0 then begin
     Result := FEntries[i].Text;
@@ -634,7 +662,7 @@ function TEmojiData.EmojizeByShortName(const value: utf8string): utf8string;
 var
   i: integer;
 begin
-  Result := EmptyStr;
+  Result := '';
   i := FindByShortName(value);
   if i >= 0 then begin
     Result := FEntries[i].Text;
@@ -645,7 +673,7 @@ function TEmojiData.DemojizeNameIn(const value: utf8string): utf8string;
 var
   i: integer;
 begin
-  Result := EmptyStr;
+  Result := '';
   i := FindByText(value);
   if i >= 0 then begin
     Result := FEntries[i].Name;
@@ -657,7 +685,7 @@ function TEmojiData.DemojizeShortNameIn(const value: utf8string
 var
   i: integer;
 begin
-  Result := EmptyStr;
+  Result := '';
   i := FindByText(value);
   if i >= 0 then begin
     Result := FEntries[i].ShortName;
@@ -669,7 +697,7 @@ function StreamToString(const AStream: TStream): utf8string;
 var
   ss: TStringStream;
 begin
-  Result := EmptyStr;
+  Result := '';
   if not Assigned(AStream) then Exit;
   ss := TStringStream.Create;
   try
@@ -699,14 +727,20 @@ begin
 {$ENDIF}
   if not Assigned(root) then Exit;
 
-{$IFDEF FPC and DELPHI_USES_JSON}
+{$IFDEF FPC}
+  cnt := root.Count-1;
+{$ENDIF}
+{$IFDEF DELPHI_USES_JSON}
   cnt := root.Count-1;
 {$ENDIF}
 {$IFDEF DELPHI_USES_DBXJSON}
   cnt := root.Size-1;
 {$ENDIF}
   for index := 0 to cnt do begin
-{$IFDEF FPC and DELPHI_USES_JSON}
+{$IFDEF FPC}
+    obj := root.Items[index] as TJsonObject;
+{$ENDIF}
+{$IFDEF DELPHI_USES_JSON}
     obj := root.Items[index] as TJsonObject;
 {$ENDIF}
 {$IFDEF DELPHI_USES_DBXJSON}
@@ -793,7 +827,10 @@ begin
       ary :=  obj.Get('short_names').JsonValue as TJsonArray;
 {$ENDIF}
 
-{$IFDEF FPC and DELPHI_USES_JSON}
+{$IFDEF FPC}
+      for sindex := 0 to ary.Count-1 do begin
+{$ENDIF}
+{$IFDEF DELPHI_USES_JSON}
       for sindex := 0 to ary.Count-1 do begin
 {$ENDIF}
 {$IFDEF DELPHI_USES_DBXJSON}
@@ -866,7 +903,7 @@ var
 begin
   if FUnified=AValue then Exit;
   FUnified:=AValue;
-  FText := EmptyStr;
+  FText := '';
 
   // set code
   term := DecodeUnified(AValue, FCode);
